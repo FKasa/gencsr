@@ -171,9 +171,21 @@ if [ -n "$email" ]; then
     subj="$subj/emailAddress=$email"
 fi
 
+exec 3>&2
+exec 2> /dev/null
 if openssl req -new -sha256 -key "$dkeyfile" -subj "$subj" -reqexts SAN -config <(cat "$oconf" <(printf "[SAN]\nsubjectAltName=$subjectAltName")) -out "$csrfile"; then
+    exec 2>&3
     echo "Successfully created CSR file: $csrfile"
 else
-    err 'Failed to create CSR file!'
-    exit 1
+    exec 2>&3
+    echo 'Trying alternative command to generate CSR file'
+    cat "$oconf"  > temp
+    printf "[SAN]\nsubjectAltName=$subjectAltName" >> temp
+    if openssl req -new -sha256 -key "$dkeyfile" -subj "$subj" -reqexts SAN -config temp -out "$csrfile"; then
+        echo "Successfully created CSR file: $csrfile"
+    else
+        err 'Failed to create CSR file!'
+        exit 1
+    fi
+    rm temp
 fi
